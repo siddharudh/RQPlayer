@@ -6,18 +6,33 @@ The whole idea is to outsource the decoding part to external tools (like FFmpeg 
 <br/>
 <br/>
 
+### Clone and Build RQPlayer 
+
+On Ubuntu 22.04:
+```
+git clone https://github.com/siddharudh/RQPlayer.git
+
+cd RQPlayer
+scripts/install-dep-ubuntu2204.sh
+
+mkdir build
+cd build
+qmake ../src/RQPlayer.pro
+make
+```
+
 ### Example 1: playing pre-decoded files
 
 1) Create raw video and audio files using FFmpeg
 
 ```
-ffmpeg -i clip.mp4 -map 0:v -r 25 -s 720x480 -f rawvideo -c:v rawvideo -pix_fmt yuv422p video.yuv
+ffmpeg -i clip.mp4 -map 0:v -r 25 -s 640x480 -f rawvideo -c:v rawvideo -pix_fmt yuv422p video.yuv
 
 ffmpeg -i clip.mp4 -map 0:a:0 -r 25 -ar 48000 -ac 1 -f s16le -c:a pcm_s16le audio.pcm
 ```
 2) Play raw video and audio files using RQPlayer
 ```
-./RQPlayer -r 25 -s 720x480 -v video.yuv -a audio.pcm
+./RQPlayer -r 25 -s 640x480 -v video.yuv -a audio.pcm
 ```
 <br/>
 
@@ -31,10 +46,10 @@ mkfifo /tmp/vpipe /tmp/apipe
 2) Start decoding session using FFmpeg
 
 ```
-ffmpeg -y -i clip.mp4 -map 0:v -r 25 -s 720x480 -f rawvideo -c:v rawvideo -pix_fmt yuv422p /tmp/vpipe -map 0:a:0 -r 25 -ar 48000 -ac 1 -f s16le -c:a pcm_s16le /tmp/apipe
+ffmpeg -y -i clip.mp4 -map 0:v -r 25 -s 640x480 -f rawvideo -c:v rawvideo -pix_fmt yuv422p /tmp/vpipe -map 0:a:0 -r 25 -ar 48000 -ac 1 -f s16le -c:a pcm_s16le /tmp/apipe
 ```
 
 3) Play video and audio data coming from pipes using RQPlayer
 ```
-./RQPlayer -r 25 -s 720x480 -v /tmp/vpipe -a /tmp/apipe
+./RQPlayer -r 25 -s 640x480 -v /tmp/vpipe -a /tmp/apipe
 ```
