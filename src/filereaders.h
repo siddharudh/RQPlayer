@@ -58,7 +58,7 @@ class AudioFileReader : public QThread
 public:
     explicit AudioFileReader(const QString &fileName,
                              const QAudioFormat &format,
-                             int videoFrameRate,
+                             double videoFrameRate,
                              QObject *parent = nullptr);
 
 signals:
@@ -70,7 +70,7 @@ protected:
 private:
     QString m_fileName;
     QAudioFormat m_format;
-    int m_videoFrameRate;
+    double m_videoFrameRate;
     QAtomicInteger<bool> m_stopRequested;
 };
 

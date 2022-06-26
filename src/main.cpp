@@ -26,7 +26,15 @@
 #include "framespresenter.h"
 #include "audiooutput.h"
 
-void processCommandLine();
+struct PlayerOptions {
+    QString videoFile;
+    QString audioFile;
+    QSize frameSize;
+    double frameRate;
+    int audioChannels;
+};
+
+void processCommandLine(PlayerOptions &options);
 
 int main(int argc, char *argv[])
 {
@@ -37,29 +45,43 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
-    QGuiApplication app(argc, argv);
+    QGuiApplication app{argc, argv};
     QQmlApplicationEngine engine;
 
-    processCommandLine();
+    PlayerOptions options;
+
+    processCommandLine(options);
+
+    if (options.frameSize.isEmpty()) {
+        options.frameSize = {640, 480};
+    }
+    if (options.audioChannels < 1 || options.audioChannels > 16) {
+        options.audioChannels = 1;
+    }
 
     using namespace RQPlayer;
     qmlRegisterType<FramesPresenter>("RQPlayer", 1, 0, "FramesPresenter");
 
-    const QUrl url("qrc:/main.qml");
+    const QUrl url{"qrc:/main.qml"};
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                     &app, [url](QObject *obj, const QUrl &objUrl) {
-        if (url == objUrl && !obj)
-            QCoreApplication::exit(-1);
+                     &app, [url, options](QObject *obj, const QUrl &objUrl) {
+        if (url == objUrl) {
+            if (!obj) {
+                QCoreApplication::exit(-1);
+            }
+            obj->setProperty("width", options.frameSize.width());
+            obj->setProperty("height", options.frameSize.height());
+        }
     }, Qt::QueuedConnection);
     engine.load(url);
 
-    QVideoSurfaceFormat videoFormat(
-                QSize(640, 480), QVideoFrame::Format_YUV422P);
-    videoFormat.setFrameRate(25);
+    QVideoSurfaceFormat videoFormat{
+        options.frameSize, QVideoFrame::Format_YUV422P};
+    videoFormat.setFrameRate(options.frameRate);
 
     QAudioFormat audioFormat;
     audioFormat.setByteOrder(QAudioFormat::LittleEndian);
-    audioFormat.setChannelCount(1);
+    audioFormat.setChannelCount(options.audioChannels);
     audioFormat.setCodec("audio/pcm");
     audioFormat.setSampleRate(48000);
     audioFormat.setSampleSize(16);
@@ -78,11 +100,11 @@ int main(int argc, char *argv[])
     }
     presenter->setFormat(videoFormat);
 
-    AudioOutput audioOutput(audioFormat, &app);
+    AudioOutput audioOutput{audioFormat, &app};
 
-    VideoFileReader videoFileReader("/tmp/vpipe", videoFormat, &app);
-    AudioFileReader audioFileReader("/tmp/apipe", audioFormat,
-                             videoFormat.frameRate(), &app);
+    VideoFileReader videoFileReader{options.videoFile, videoFormat, &app};
+    AudioFileReader audioFileReader{options.audioFile, audioFormat,
+                videoFormat.frameRate(), &app};
 
     QObject::connect(&videoFileReader, &VideoFileReader::frameReady,
                      presenter, &FramesPresenter::presentFrame,
@@ -97,12 +119,32 @@ int main(int argc, char *argv[])
     return app.exec();
 }
 
-void processCommandLine()
+void processCommandLine(PlayerOptions &options)
 {
     QCommandLineParser parser;
-    parser.setApplicationDescription("Raw video & audio frames player built with Qt.");
+    parser.setApplicationDescription(
+                "Raw video & audio frames player built with Qt.");
     parser.addHelpOption();
-    parser.addVersionOption();
-
+    parser.addOption({{"v", "video-file"},
+                      "Video file path", "file"});
+    parser.addOption({{"a", "audio-file"},
+                      "Audio file path", "file"});
+    parser.addOption({{"s", "frame-size"},
+                      "Video frame size", "WxH"});
+    parser.addOption({{"r", "frame-rate"},
+                      "Frame rate", "fps"});
+    parser.addOption({{"c", "audio-channels"},
+                      "Audio channels", "count"});
     parser.process(QCoreApplication::arguments());
+
+    // Set PlayerOptions from parsed command line arguments
+    options.videoFile = parser.value("video-file");
+    options.audioFile = parser.value("audio-file");
+    auto frameSizeParts = parser.value("frame-size").split("x");
+    if (frameSizeParts.size() == 2) {
+        options.frameSize = {frameSizeParts[0].toInt(),
+                             frameSizeParts[1].toInt()};
+    }
+    options.frameRate = parser.value("frame-rate").toDouble();
+    options.audioChannels = parser.value("audio-channels").toInt();
 }

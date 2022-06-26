@@ -91,7 +91,7 @@ void VideoFileReader::run()
 
 AudioFileReader::AudioFileReader(const QString &fileName,
                                  const QAudioFormat &format,
-                                 int videoFrameRate,
+                                 double videoFrameRate,
                                  QObject *parent)
     : QThread(parent), m_fileName(fileName), m_format(format),
       m_videoFrameRate(videoFrameRate), m_stopRequested(false)
