@@ -20,6 +20,7 @@
 
 #include "filereaders.h"
 
+#include <QFile>
 #include <QDateTime>
 #include <QDebug>
 #include <cstdio>
@@ -31,8 +32,24 @@ VideoFileReader::VideoFileReader(const QString &fileName,
                                  const QVideoSurfaceFormat &format,
                                  QObject *parent)
     : QThread(parent), m_fileName(fileName), m_format(format),
-      m_stopRequested(false)
+      m_stopRequested(false), m_vfp(nullptr)
 {
+}
+
+void VideoFileReader::stop()
+{
+    m_stopRequested = true;
+
+    // Workaround to unblock fopen and fread operations
+    // to gracefully exit file reader thread
+    QFile f(m_fileName);
+    if (f.exists()) {
+        f.open(QFile::WriteOnly);
+        f.close();
+        if (m_vfp) {
+            fclose(m_vfp);
+        }
+    }
 }
 
 void VideoFileReader::run()
@@ -52,8 +69,8 @@ void VideoFileReader::run()
             = m_format.frameRate() > 0 ? 1000.0 /  m_format.frameRate() : 40;
     while (!m_stopRequested) {
         qDebug() << "VideoFileReader: Attempting to open file:" << m_fileName;
-        FILE *vfp = fopen(m_fileName.toStdString().c_str(), "r");
-        if (vfp == nullptr) {
+        m_vfp = fopen(m_fileName.toStdString().c_str(), "r");
+        if (m_vfp == nullptr) {
             qDebug() << "VideoFileReader: Failed to open file:" << m_fileName;
             QThread::sleep(1);
             continue;
@@ -65,9 +82,9 @@ void VideoFileReader::run()
             QVideoFrame frame(bytesCount, m_format.frameSize(),
                               m_format.frameWidth(), m_format.pixelFormat());
             frame.map(QAbstractVideoBuffer::WriteOnly);
-            size_t c = fread(frame.bits(), bytesCount, 1, vfp);
+            size_t c = fread(frame.bits(), bytesCount, 1, m_vfp);
             frame.unmap();
-            if (c) {
+            if (!m_stopRequested && c) {
                 emit frameReady(frame);
                 auto sleepMsec = QDateTime::currentDateTime().msecsTo(
                             nextFrameTime);
@@ -76,9 +93,10 @@ void VideoFileReader::run()
                 }
                 nextFrameTime = nextFrameTime.addMSecs(frameDurMsec);
             }
-            else if (feof(vfp) || ferror(vfp)) {
-                qDebug() << "AudioFileReader: EOF or Error on file:" << m_fileName;
-                fclose(vfp);
+            else if (feof(m_vfp) || ferror(m_vfp)) {
+                qDebug() << "AudioFileReader: EOF or Error on file:"
+                         << m_fileName;
+                fclose(m_vfp);
                 break;
             }
             else {
@@ -94,8 +112,25 @@ AudioFileReader::AudioFileReader(const QString &fileName,
                                  double videoFrameRate,
                                  QObject *parent)
     : QThread(parent), m_fileName(fileName), m_format(format),
-      m_videoFrameRate(videoFrameRate), m_stopRequested(false)
+      m_videoFrameRate(videoFrameRate), m_stopRequested(false),
+      m_afp(nullptr)
 {
+}
+
+void AudioFileReader::stop()
+{
+    m_stopRequested = true;
+
+    // Workaround to unblock fopen and fread operations
+    // to gracefully exit file reader thread
+    QFile f(m_fileName);
+    if (f.exists()) {
+        f.open(QFile::WriteOnly);
+        f.close();
+        if (m_afp) {
+            fclose(m_afp);
+        }
+    }
 }
 
 void AudioFileReader::run()
@@ -115,18 +150,19 @@ void AudioFileReader::run()
             = m_format.framesForDuration(frameDurMsec * 1000);
     while (!m_stopRequested) {
         qDebug() << "AudioFileReader: Attempting to open file:" << m_fileName;
-        FILE *afp = fopen(m_fileName.toStdString().c_str(), "r");
-        if (afp == nullptr) {
+        m_afp = fopen(m_fileName.toStdString().c_str(), "r");
+        if (m_afp == nullptr) {
             qDebug() << "AudioFileReader: Failed to open file:" << m_fileName;
             QThread::sleep(1);
             continue;
         }
         qDebug() << "AudioFileReader: file opened for reading:" << m_fileName;
-        QDateTime nextFrameTime = QDateTime::currentDateTime().addMSecs(frameDurMsec);
+        QDateTime nextFrameTime = QDateTime::currentDateTime().addMSecs(
+                    frameDurMsec);
         while (!m_stopRequested) {
             QAudioBuffer abuf(numAudioFramesPerVideoFrame, m_format);
-            size_t c = fread(abuf.data(), abuf.byteCount(), 1, afp);
-            if (c) {
+            size_t c = fread(abuf.data(), abuf.byteCount(), 1, m_afp);
+            if (!m_stopRequested && c) {
                 emit samplesReady(abuf);
                 auto sleepMsec = QDateTime::currentDateTime().msecsTo(
                             nextFrameTime);
@@ -135,9 +171,10 @@ void AudioFileReader::run()
                 }
                 nextFrameTime = nextFrameTime.addMSecs(frameDurMsec);
             }
-            else if (feof(afp) || ferror(afp)) {
-                qDebug() << "AudioFileReader: EOF or Error on file:" << m_fileName;
-                fclose(afp);
+            else if (feof(m_afp) || ferror(m_afp)) {
+                qDebug() << "AudioFileReader: EOF or Error on file:"
+                         << m_fileName;
+                fclose(m_afp);
                 break;
             }
             else {

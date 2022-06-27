@@ -41,6 +41,7 @@ void FramesPresenter::setVideoSurface(QAbstractVideoSurface *surface)
         m_format = m_surface->nearestFormat(m_format);
         m_surface->start(m_format);
     }
+    emit videoSurfaceChanged(m_surface);
 }
 
 void FramesPresenter::setFormat(const QVideoSurfaceFormat &format)

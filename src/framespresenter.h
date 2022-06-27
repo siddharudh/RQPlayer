@@ -31,7 +31,10 @@ class FramesPresenter : public QObject
 {
     Q_OBJECT
 
-    Q_PROPERTY(QAbstractVideoSurface *videoSurface READ videoSurface WRITE setVideoSurface)
+    Q_PROPERTY(QAbstractVideoSurface *videoSurface
+               READ videoSurface
+               WRITE setVideoSurface
+               NOTIFY videoSurfaceChanged)
 
 public:
     explicit FramesPresenter(QObject *parent = nullptr);
@@ -45,6 +48,9 @@ public:
 
 public slots:
     void presentFrame(const QVideoFrame &frame);
+
+signals:
+    void videoSurfaceChanged(QAbstractVideoSurface *surface);
 
 private:
     QAbstractVideoSurface *m_surface = nullptr;

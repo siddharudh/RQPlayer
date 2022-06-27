@@ -21,6 +21,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QCommandLineParser>
+#include <QFile>
 
 #include "filereaders.h"
 #include "framespresenter.h"
@@ -52,6 +53,11 @@ int main(int argc, char *argv[])
 
     processCommandLine(options);
 
+    if (options.videoFile.isEmpty() && options.audioFile.isEmpty()) {
+        options.videoFile = "/tmp/vpipe";
+        options.audioFile = "/tmp/apipe";
+    }
+
     if (options.frameSize.isEmpty()) {
         options.frameSize = {640, 480};
     }
@@ -66,13 +72,16 @@ int main(int argc, char *argv[])
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
                      &app, [url, options](QObject *obj, const QUrl &objUrl) {
         if (url == objUrl) {
-            if (!obj) {
+            if (obj) {
+                obj->setProperty("width", options.frameSize.width());
+                obj->setProperty("height", options.frameSize.height());
+            }
+            else {
                 QCoreApplication::exit(-1);
             }
-            obj->setProperty("width", options.frameSize.width());
-            obj->setProperty("height", options.frameSize.height());
         }
     }, Qt::QueuedConnection);
+
     engine.load(url);
 
     QVideoSurfaceFormat videoFormat{
@@ -112,6 +121,18 @@ int main(int argc, char *argv[])
     QObject::connect(&audioFileReader, &AudioFileReader::samplesReady,
                      &audioOutput, &AudioOutput::playAudio,
                      Qt::BlockingQueuedConnection);
+
+    QObject::connect(&app, &QGuiApplication::aboutToQuit,
+                     &app, [&]() {
+        QObject::disconnect(&videoFileReader, &VideoFileReader::frameReady,
+                         presenter, &FramesPresenter::presentFrame);
+        QObject::disconnect(&audioFileReader, &AudioFileReader::samplesReady,
+                         &audioOutput, &AudioOutput::playAudio);
+        videoFileReader.stop();
+        audioFileReader.stop();
+        videoFileReader.wait();
+        audioFileReader.wait();
+    });
 
     videoFileReader.start();
     audioFileReader.start();

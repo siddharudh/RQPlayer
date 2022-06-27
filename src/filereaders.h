@@ -30,6 +30,8 @@
 
 #include <QAtomicInteger>
 
+#include <cstdio>
+
 namespace RQPlayer {
 
 class VideoFileReader : public QThread
@@ -39,6 +41,7 @@ public:
     explicit VideoFileReader(const QString &fileName,
                              const QVideoSurfaceFormat &format,
                              QObject *parent = nullptr);
+    void stop();
 
 signals:
     void frameReady(const QVideoFrame &frame);
@@ -50,6 +53,8 @@ private:
     QString m_fileName;
     QVideoSurfaceFormat m_format;
     QAtomicInteger<bool> m_stopRequested;
+
+    FILE *m_vfp;
 };
 
 class AudioFileReader : public QThread
@@ -60,6 +65,7 @@ public:
                              const QAudioFormat &format,
                              double videoFrameRate,
                              QObject *parent = nullptr);
+    void stop();
 
 signals:
     void samplesReady(const QAudioBuffer &abuf);
@@ -72,6 +78,8 @@ private:
     QAudioFormat m_format;
     double m_videoFrameRate;
     QAtomicInteger<bool> m_stopRequested;
+
+    FILE *m_afp;
 };
 
 } // namespace RQPlayer
