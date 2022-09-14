@@ -63,10 +63,7 @@ void VideoFileReader::run()
         qDebug() << "VideoFileReader: Invalid format:" << m_format;
         return;
     }
-    // qDebug() << "VideoFileReader: format:" << m_format;
     const auto bytesCount = m_format.frameWidth() * m_format.frameHeight() * 2;
-    const auto frameDurMsec
-            = m_format.frameRate() > 0 ? 1000.0 /  m_format.frameRate() : 40;
     while (!m_stopRequested) {
         qDebug() << "VideoFileReader: Attempting to open file:" << m_fileName;
         m_vfp = fopen(m_fileName.toStdString().c_str(), "r");
@@ -76,8 +73,6 @@ void VideoFileReader::run()
             continue;
         }
         qDebug() << "VideoFileReader: file opened for reading:" << m_fileName;
-        QDateTime nextFrameTime = QDateTime::currentDateTime().addMSecs(
-                    frameDurMsec);
         while (!m_stopRequested) {
             QVideoFrame frame(bytesCount, m_format.frameSize(),
                               m_format.frameWidth(), m_format.pixelFormat());
@@ -85,13 +80,8 @@ void VideoFileReader::run()
             size_t c = fread(frame.bits(), bytesCount, 1, m_vfp);
             frame.unmap();
             if (!m_stopRequested && c) {
+                // qDebug() << "VideoFileReader: frameReady";
                 emit frameReady(frame);
-                auto sleepMsec = QDateTime::currentDateTime().msecsTo(
-                            nextFrameTime);
-                if (sleepMsec > 0) {
-                    QThread::usleep(sleepMsec * 1000);
-                }
-                nextFrameTime = nextFrameTime.addMSecs(frameDurMsec);
             }
             else if (feof(m_vfp) || ferror(m_vfp)) {
                 qDebug() << "AudioFileReader: EOF or Error on file:"
@@ -157,19 +147,12 @@ void AudioFileReader::run()
             continue;
         }
         qDebug() << "AudioFileReader: file opened for reading:" << m_fileName;
-        QDateTime nextFrameTime = QDateTime::currentDateTime().addMSecs(
-                    frameDurMsec);
         while (!m_stopRequested) {
             QAudioBuffer abuf(numAudioFramesPerVideoFrame, m_format);
             size_t c = fread(abuf.data(), abuf.byteCount(), 1, m_afp);
             if (!m_stopRequested && c) {
+                // qDebug() << "AudioFileReader: samplesReady";
                 emit samplesReady(abuf);
-                auto sleepMsec = QDateTime::currentDateTime().msecsTo(
-                            nextFrameTime);
-                if (sleepMsec > 0) {
-                    QThread::usleep(sleepMsec * 1000);
-                }
-                nextFrameTime = nextFrameTime.addMSecs(frameDurMsec);
             }
             else if (feof(m_afp) || ferror(m_afp)) {
                 qDebug() << "AudioFileReader: EOF or Error on file:"

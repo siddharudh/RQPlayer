@@ -40,6 +40,4 @@ Window {
         source: presenter
         anchors.fill: parent
     }
-
-
 }

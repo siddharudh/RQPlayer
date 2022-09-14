@@ -24,6 +24,7 @@
 #include <QFile>
 
 #include "filereaders.h"
+#include "orchestrator.h"
 #include "framespresenter.h"
 #include "audiooutput.h"
 
@@ -115,27 +116,43 @@ int main(int argc, char *argv[])
     AudioFileReader audioFileReader{options.audioFile, audioFormat,
                 videoFormat.frameRate(), &app};
 
+    Orchestrator orchestrator;
+
     QObject::connect(&videoFileReader, &VideoFileReader::frameReady,
+                     &orchestrator, &Orchestrator::enqueueVideoFrame,
+                     Qt::DirectConnection);
+    QObject::connect(&audioFileReader, &AudioFileReader::samplesReady,
+                     &orchestrator, &Orchestrator::enqueueAudioFrame,
+                     Qt::DirectConnection);
+
+    QObject::connect(&orchestrator, &Orchestrator::videoFrameReady,
                      presenter, &FramesPresenter::presentFrame,
                      Qt::BlockingQueuedConnection);
-    QObject::connect(&audioFileReader, &AudioFileReader::samplesReady,
+    QObject::connect(&orchestrator, &Orchestrator::audioFrameReady,
                      &audioOutput, &AudioOutput::playAudio,
                      Qt::BlockingQueuedConnection);
 
     QObject::connect(&app, &QGuiApplication::aboutToQuit,
                      &app, [&]() {
         QObject::disconnect(&videoFileReader, &VideoFileReader::frameReady,
-                         presenter, &FramesPresenter::presentFrame);
+                         &orchestrator, &Orchestrator::enqueueVideoFrame);
         QObject::disconnect(&audioFileReader, &AudioFileReader::samplesReady,
+                         &orchestrator, &Orchestrator::enqueueAudioFrame);
+
+        QObject::disconnect(&orchestrator, &Orchestrator::videoFrameReady,
+                         presenter, &FramesPresenter::presentFrame);
+        QObject::disconnect(&orchestrator, &Orchestrator::audioFrameReady,
                          &audioOutput, &AudioOutput::playAudio);
         videoFileReader.stop();
         audioFileReader.stop();
         videoFileReader.wait();
         audioFileReader.wait();
+        orchestrator.stop();
     });
 
     videoFileReader.start();
     audioFileReader.start();
+    orchestrator.start();
 
     return app.exec();
 }

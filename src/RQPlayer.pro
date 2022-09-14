@@ -10,7 +10,8 @@ SOURCES += \
         audiooutput.cpp \
         filereaders.cpp \
         framespresenter.cpp \
-        main.cpp
+        main.cpp \
+        orchestrator.cpp
 
 RESOURCES += qml.qrc
 
@@ -28,4 +29,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     audiooutput.h \
     filereaders.h \
-    framespresenter.h
+    framespresenter.h \
+    orchestrator.h
